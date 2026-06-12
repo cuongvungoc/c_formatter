@@ -69,6 +69,29 @@ class CFormatterTests(unittest.TestCase):
                 "int a() {\n    return 1;\n}\n\n\nint b() {\n    return 2;\n}\n",
             )
 
+    def test_cli_can_apply_allman_brace_style(self) -> None:
+        """Verify CLI can put opening braces on the next line."""
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            input_path = Path(tmpdir) / "input.c"
+            output_path = Path(tmpdir) / "formatted.c"
+            input_path.write_text("int main(){if(x){return 1;}return 0;}\n", encoding="utf-8")
+
+            exit_code = main([str(input_path), "-o", str(output_path), "--brace-style", "allman"])
+
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(
+                output_path.read_text(encoding="utf-8"),
+                "int main()\n"
+                "{\n"
+                "    if (x)\n"
+                "    {\n"
+                "        return 1;\n"
+                "    }\n"
+                "    return 0;\n"
+                "}\n",
+            )
+
     def test_default_compacts_input_blank_lines(self) -> None:
         """Verify default mode does not preserve input blank lines."""
 
@@ -87,6 +110,26 @@ class CFormatterTests(unittest.TestCase):
         self.assertEqual(
             format_c_code(source, preserve_line_breaks=True),
             "#include <stdio.h>\n\nint a() {\n    return 1;\n}\n\n\nint b() {\n    return 2;\n}\n",
+        )
+
+    def test_allman_brace_style_puts_opening_braces_on_next_line(self) -> None:
+        """Verify API Allman style for functions and control blocks."""
+
+        source = "int main(){if(x){return 1;}else{return 2;}}"
+
+        self.assertEqual(
+            format_c_code(source, brace_style="allman"),
+            "int main()\n"
+            "{\n"
+            "    if (x)\n"
+            "    {\n"
+            "        return 1;\n"
+            "    }\n"
+            "    else\n"
+            "    {\n"
+            "        return 2;\n"
+            "    }\n"
+            "}\n",
         )
 
     def test_preserve_line_breaks_does_not_add_blank_after_comment(self) -> None:

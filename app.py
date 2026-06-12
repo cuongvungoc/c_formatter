@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from flask import Flask, render_template_string, request
 
-from c_formatter import format_c_code
+from c_formatter import BRACE_STYLE_ALLMAN, BRACE_STYLE_KR, format_c_code
 
 
 app = Flask(__name__)
@@ -121,6 +121,13 @@ PAGE_TEMPLATE = """<!doctype html>
             accent-color: var(--accent);
         }
 
+        .options {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 16px;
+        }
+
         button {
             min-height: 40px;
             padding: 0 18px;
@@ -229,10 +236,16 @@ PAGE_TEMPLATE = """<!doctype html>
         <main>
             <form method="post">
                 <div class="toolbar">
-                    <label class="option">
-                        <input type="checkbox" name="keep_line_breaks" value="1"{% if keep_line_breaks %} checked{% endif %}>
-                        Keep input blank lines
-                    </label>
+                    <div class="options">
+                        <label class="option">
+                            <input type="checkbox" name="keep_line_breaks" value="1"{% if keep_line_breaks %} checked{% endif %}>
+                            Keep input blank lines
+                        </label>
+                        <label class="option">
+                            <input type="checkbox" name="allman_braces" value="1"{% if allman_braces %} checked{% endif %}>
+                            Allman brace style
+                        </label>
+                    </div>
                     <button type="submit">Format Code</button>
                 </div>
                 <div class="editor-grid">
@@ -261,12 +274,19 @@ def index() -> str:
     formatted = ""
     error = ""
     keep_line_breaks = False
+    allman_braces = False
 
     if request.method == "POST":
         source = request.form.get("source", "")
         keep_line_breaks = request.form.get("keep_line_breaks") == "1"
+        allman_braces = request.form.get("allman_braces") == "1"
+        brace_style = BRACE_STYLE_ALLMAN if allman_braces else BRACE_STYLE_KR
         try:
-            formatted = format_c_code(source, preserve_line_breaks=keep_line_breaks)
+            formatted = format_c_code(
+                source,
+                preserve_line_breaks=keep_line_breaks,
+                brace_style=brace_style,
+            )
         except Exception as exc:  # pragma: no cover - defensive UI boundary.
             error = f"Formatter error: {exc}"
 
@@ -275,6 +295,7 @@ def index() -> str:
         input_source=source,
         formatted=formatted,
         keep_line_breaks=keep_line_breaks,
+        allman_braces=allman_braces,
         error=error,
     )
 

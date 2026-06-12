@@ -30,6 +30,7 @@ class WebAppTests(unittest.TestCase):
         self.assertIn(b"C Formatter", response.data)
         self.assertIn(b'name="source"', response.data)
         self.assertIn(b'name="keep_line_breaks"', response.data)
+        self.assertIn(b'name="allman_braces"', response.data)
 
     def test_formats_posted_source(self) -> None:
         """Format pasted C source from a POST request."""
@@ -54,6 +55,22 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"int a() {", response.data)
         self.assertIn(b"}\n\n\nint b() {", response.data)
+        self.assertIn(b"checked", response.data)
+
+    def test_allman_brace_checkbox_enables_next_line_braces(self) -> None:
+        """Put opening braces on the next line when checkbox is submitted."""
+
+        response = self.client.post(
+            "/",
+            data={
+                "source": "int main(){if(x){return 1;}return 0;}",
+                "allman_braces": "1",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"int main()\n{", response.data)
+        self.assertIn(b"if (x)\n    {", response.data)
         self.assertIn(b"checked", response.data)
 
     def test_health_route(self) -> None:

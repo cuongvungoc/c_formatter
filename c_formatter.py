@@ -12,6 +12,9 @@ from typing import Iterable
 
 
 INDENT = " " * 4
+BRACE_STYLE_KR = "kr"
+BRACE_STYLE_ALLMAN = "allman"
+BRACE_STYLES = {BRACE_STYLE_KR, BRACE_STYLE_ALLMAN}
 
 
 class TokenKind(Enum):
@@ -618,8 +621,9 @@ class Parser:
 class Formatter:
     """Formats the parsed C token tree with simple K&R-style rules."""
 
-    def __init__(self, indent_unit: str = INDENT) -> None:
+    def __init__(self, indent_unit: str = INDENT, brace_style: str = BRACE_STYLE_KR) -> None:
         self.indent_unit = indent_unit
+        self.brace_style = brace_style
 
     def format(self, program: ProgramNode) -> str:
         """Format a complete program and return a newline-terminated string."""
@@ -653,13 +657,21 @@ class Formatter:
                 index += 1
                 while index < len(node_list):
                     next_node = node_list[index]
-                    if isinstance(next_node, BlockNode) and self._starts_with(next_node.header, "else"):
+                    if (
+                        self.brace_style == BRACE_STYLE_KR
+                        and isinstance(next_node, BlockNode)
+                        and self._starts_with(next_node.header, "else")
+                    ):
                         next_lines = self._format_block(next_node, indent)
                         block_lines[-1] = f"{block_lines[-1]} {next_lines[0].lstrip()}"
                         block_lines.extend(next_lines[1:])
                         index += 1
                         continue
-                    if isinstance(next_node, StatementNode) and self._starts_with(next_node.tokens, "else"):
+                    if (
+                        self.brace_style == BRACE_STYLE_KR
+                        and isinstance(next_node, StatementNode)
+                        and self._starts_with(next_node.tokens, "else")
+                    ):
                         next_lines = self._format_statement(next_node.tokens, indent)
                         block_lines[-1] = f"{block_lines[-1]} {next_lines[0].lstrip()}"
                         index += 1
@@ -690,12 +702,15 @@ class Formatter:
         return [prefix + line if line else prefix for line in lines]
 
     def _format_block(self, node: BlockNode, indent: int) -> list[str]:
-        """Format a braced block with K&R opening braces."""
+        """Format a braced block with the configured opening-brace style."""
 
         prefix = self.indent_unit * indent
         header = self._format_tokens(node.header).strip()
-        open_line = f"{prefix}{header} {{" if header else f"{prefix}{{"
-        lines = [open_line.rstrip()]
+        if self.brace_style == BRACE_STYLE_ALLMAN and header:
+            lines = [f"{prefix}{header}", f"{prefix}{{"]
+        else:
+            open_line = f"{prefix}{header} {{" if header else f"{prefix}{{"
+            lines = [open_line.rstrip()]
         lines.extend(self._format_nodes(node.children, indent + 1))
         lines.append(f"{prefix}}}")
         return lines
@@ -931,12 +946,18 @@ class Formatter:
         }
 
 
-def format_c_code(source: str, preserve_line_breaks: bool = False) -> str:
+def format_c_code(
+    source: str,
+    preserve_line_breaks: bool = False,
+    brace_style: str = BRACE_STYLE_KR,
+) -> str:
     """Format raw C source code using the full pipeline."""
 
+    if brace_style not in BRACE_STYLES:
+        raise ValueError(f"unsupported brace style: {brace_style}")
     tokens = Lexer(source).tokenize()
     program = Parser(tokens, preserve_line_breaks=preserve_line_breaks).parse()
-    return Formatter().format(program)
+    return Formatter(brace_style=brace_style).format(program)
 
 
 def read_input(value: str) -> str:
@@ -970,6 +991,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Preserve blank lines from the input file.",
     )
+    parser.add_argument(
+        "--brace-style",
+        choices=sorted(BRACE_STYLES),
+        default=BRACE_STYLE_KR,
+        help="Opening brace style: kr keeps braces on the header line; allman puts braces on the next line.",
+    )
     return parser
 
 
@@ -979,7 +1006,11 @@ def main(argv: list[str] | None = None) -> int:
     args = build_arg_parser().parse_args(argv)
     try:
         source = read_input(args.input)
-        formatted = format_c_code(source, preserve_line_breaks=args.keep_line_breaks)
+        formatted = format_c_code(
+            source,
+            preserve_line_breaks=args.keep_line_breaks,
+            brace_style=args.brace_style,
+        )
         write_output(formatted, args.output)
         return 0
     except OSError as exc:
